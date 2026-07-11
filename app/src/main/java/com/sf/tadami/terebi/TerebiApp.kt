@@ -8,6 +8,9 @@ import androidx.lifecycle.ProcessLifecycleOwner
 import com.google.android.gms.cast.tv.CastReceiverContext
 import com.google.android.gms.security.ProviderInstaller
 import com.sf.tadami.terebi.crash.CrashHandler
+import com.sf.tadami.terebi.update.CastProtocol
+import com.sf.tadami.terebi.update.UpdateController
+import org.json.JSONObject
 
 class TerebiApp : Application() {
     override fun onCreate() {
@@ -15,6 +18,7 @@ class TerebiApp : Application() {
         updateSecurityProvider()
         CrashHandler.install(this)
         CastReceiverContext.initInstance(this)
+        registerCompatibilityHandshake()
         // start()/stop() the receiver with the app foreground state (recommended by the Cast docs).
         ProcessLifecycleOwner.get().lifecycle.addObserver(object : DefaultLifecycleObserver {
             override fun onStart(owner: LifecycleOwner) {
@@ -25,6 +29,26 @@ class TerebiApp : Application() {
                 CastReceiverContext.getInstance().stop()
             }
         })
+    }
+
+    /**
+     * Listen for the phone's connect-time protocol handshake. Registered here (app start, before the
+     * phone finishes connecting) so an incompatible receiver is flagged as soon as the session opens —
+     * independent of whether any media is ever loaded. Setting [UpdateController.requireUpdate] flips
+     * the update dialog into its non-skippable "required" mode; PlaybackActivity observes it.
+     */
+    private fun registerCompatibilityHandshake() {
+        runCatching {
+            CastReceiverContext.getInstance().setMessageReceivedListener(
+                CastProtocol.HANDSHAKE_NAMESPACE,
+            ) { _, _, message ->
+                val minReceiver = runCatching { JSONObject(message).optInt("minReceiverProtocol", 1) }
+                    .getOrDefault(1)
+                if (CastProtocol.RECEIVER_VERSION < minReceiver) {
+                    UpdateController.requireUpdate()
+                }
+            }
+        }.onFailure { Log.e("TerebiApp", "handshake listener registration failed", it) }
     }
 
     private fun updateSecurityProvider() {

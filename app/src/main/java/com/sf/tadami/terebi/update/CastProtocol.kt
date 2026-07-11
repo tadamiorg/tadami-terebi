@@ -15,4 +15,7 @@ object CastProtocol {
 
     /** customData key the phone uses to advertise the minimum receiver protocol it requires. */
     const val MIN_RECEIVER_KEY = "minReceiverProtocol"
+
+    /** Custom cast namespace the phone pushes its protocol versions on at connect time. */
+    const val HANDSHAKE_NAMESPACE = "urn:x-cast:com.sf.tadami.handshake"
 }
