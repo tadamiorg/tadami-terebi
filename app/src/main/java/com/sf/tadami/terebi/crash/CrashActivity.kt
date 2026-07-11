@@ -13,10 +13,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.sf.tadami.terebi.R
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
+import com.sf.tadami.terebi.R
 import com.sf.tadami.terebi.ui.TadamiTerebiTheme
 import kotlin.system.exitProcess
 

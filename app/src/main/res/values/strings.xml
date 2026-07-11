@@ -26,4 +26,16 @@
     <!-- Crash screen -->
     <string name="crash_title">Tadami TV crashed</string>
     <string name="crash_message">The error log was sent to your phone (or will be sent the next time it connects). You can also read it below.</string>
+
+    <!-- App update -->
+    <string name="update_required_title">Update required</string>
+    <string name="update_required_message">Your phone needs a newer version of Tadami Terebi to keep casting. Download and install the update to continue.</string>
+    <string name="update_available_title">Update available</string>
+    <string name="update_available_message">A new version (%1$s) of Tadami Terebi is available.</string>
+    <string name="update_download">Download</string>
+    <string name="update_install">Install</string>
+    <string name="update_skip">Skip</string>
+    <string name="update_retry">Retry</string>
+    <string name="update_downloading">Downloading… %1$d%%</string>
+    <string name="update_download_failed">Download failed. Please try again.</string>
 </resources>

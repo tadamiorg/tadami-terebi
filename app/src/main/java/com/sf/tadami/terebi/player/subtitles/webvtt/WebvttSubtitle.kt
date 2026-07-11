@@ -2,7 +2,6 @@ package com.sf.tadami.terebi.player.subtitles.webvtt
 
 import androidx.media3.common.C
 import androidx.media3.common.text.Cue
-import androidx.media3.common.util.Assertions
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.common.util.Util
 import androidx.media3.extractor.text.Subtitle

@@ -23,11 +23,11 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.res.stringResource
-import com.sf.tadami.terebi.R
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
+import com.sf.tadami.terebi.R
 import com.sf.tadami.terebi.player.TvEpisode
 import com.sf.tadami.terebi.player.TvStreamSource
 import com.sf.tadami.terebi.player.TvSubtitleTrack

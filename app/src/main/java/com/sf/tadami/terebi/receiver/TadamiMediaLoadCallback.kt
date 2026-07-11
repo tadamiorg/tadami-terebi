@@ -7,6 +7,7 @@ import com.google.android.gms.cast.tv.media.MediaLoadCommandCallback
 import com.google.android.gms.tasks.Task
 import com.google.android.gms.tasks.Tasks
 import com.sf.tadami.terebi.player.PlayerManager
+import com.sf.tadami.terebi.update.CastProtocol
 import java.util.concurrent.Callable
 import java.util.concurrent.Executor
 
@@ -15,6 +16,7 @@ import java.util.concurrent.Executor
 class TadamiMediaLoadCallback(
     private val playerManager: PlayerManager,
     private val uiExecutor: Executor,
+    private val onIncompatible: () -> Unit,
     private val onLoaded: (MediaLoadRequestData) -> Unit,
 ) : MediaLoadCommandCallback() {
 
@@ -25,6 +27,13 @@ class TadamiMediaLoadCallback(
         uiExecutor,
         Callable {
             val info = requireNotNull(loadRequestData.mediaInfo) { "missing mediaInfo" }
+            // Compatibility gate: if the phone requires a newer receiver protocol than we implement,
+            // refuse to play and show the forced-update dialog instead.
+            val minReceiver = info.customData?.optInt(CastProtocol.MIN_RECEIVER_KEY, 1) ?: 1
+            if (CastProtocol.RECEIVER_VERSION < minReceiver) {
+                onIncompatible()
+                return@Callable loadRequestData
+            }
             val startMs = loadRequestData.currentTime.coerceAtLeast(0L)
             val autoplay = loadRequestData.autoplay ?: true
             playerManager.load(info, startMs, autoplay)

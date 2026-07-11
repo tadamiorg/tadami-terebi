@@ -5,6 +5,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.annotation.OptIn
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -18,11 +19,16 @@ import com.google.android.gms.cast.tv.CastReceiverContext
 import com.google.android.gms.cast.tv.SenderDisconnectedEventInfo
 import com.google.android.gms.cast.tv.SenderInfo
 import com.google.android.gms.cast.tv.media.MediaManager
+import com.sf.tadami.terebi.BuildConfig
 import com.sf.tadami.terebi.crash.CrashReporter
 import com.sf.tadami.terebi.player.ControlSender
 import com.sf.tadami.terebi.player.PlayerManager
 import com.sf.tadami.terebi.receiver.TadamiMediaCommandCallback
 import com.sf.tadami.terebi.receiver.TadamiMediaLoadCallback
+import com.sf.tadami.terebi.update.TvAppUpdater
+import com.sf.tadami.terebi.update.UpdateController
+import com.sf.tadami.terebi.update.UpdateDialog
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.util.concurrent.Executor
@@ -60,7 +66,11 @@ class PlaybackActivity : ComponentActivity() {
 
         mediaManager = CastReceiverContext.getInstance().mediaManager
         mediaManager.setMediaLoadCommandCallback(
-            TadamiMediaLoadCallback(playerManager, uiExecutor) { loadRequestData ->
+            TadamiMediaLoadCallback(
+                playerManager = playerManager,
+                uiExecutor = uiExecutor,
+                onIncompatible = { UpdateController.requireUpdate() },
+            ) { loadRequestData ->
                 mediaManager.setDataFromLoad(loadRequestData)
                 mediaManager.broadcastMediaStatus()
                 // A sender is connected now — flush any crash log saved before the last restart.
@@ -75,17 +85,41 @@ class PlaybackActivity : ComponentActivity() {
 
         setContent {
             val themeColors by playerManager.themeColors.collectAsState()
+            val updateRequired by UpdateController.required.collectAsState()
+            val updateAvailable by UpdateController.available.collectAsState()
             TadamiTerebiTheme(colors = themeColors) {
                 Surface(modifier = Modifier.fillMaxSize()) {
-                    PlaybackScreen(playerManager)
+                    Box(modifier = Modifier.fillMaxSize()) {
+                        PlaybackScreen(playerManager)
+                        when {
+                            updateRequired -> UpdateDialog(release = null, forced = true, onDismiss = {})
+                            updateAvailable != null -> UpdateDialog(
+                                release = updateAvailable,
+                                forced = false,
+                                onDismiss = { UpdateController.dismissAvailable() },
+                            )
+                        }
+                    }
                 }
             }
         }
 
         startMediaStatusTicker()
+        checkForOptionalUpdate()
 
         // Route the launch/load intent into the MediaManager.
         mediaManager.onNewIntent(intent)
+    }
+
+    /**
+     * Non-blocking launch check: if a newer release exists (and we're still compatible with the
+     * connected phone), offer a dismissible update dialog. Runs once per process start.
+     */
+    private fun checkForOptionalUpdate() {
+        lifecycleScope.launch(Dispatchers.Default) {
+            val release = TvAppUpdater.checkForUpdate(BuildConfig.VERSION_NAME)
+            if (release != null) UpdateController.setAvailable(release)
+        }
     }
 
     /**

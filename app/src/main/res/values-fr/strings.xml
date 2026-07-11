@@ -21,4 +21,16 @@
     <!-- Crash screen -->
     <string name="crash_title">Tadami TV a planté</string>
     <string name="crash_message">Le journal d\'erreurs a été envoyé à votre téléphone (ou le sera à la prochaine connexion). Vous pouvez aussi le lire ci-dessous.</string>
+
+    <!-- App update -->
+    <string name="update_required_title">Mise à jour requise</string>
+    <string name="update_required_message">Votre téléphone nécessite une version plus récente de Tadami Terebi pour continuer à diffuser. Téléchargez et installez la mise à jour pour continuer.</string>
+    <string name="update_available_title">Mise à jour disponible</string>
+    <string name="update_available_message">Une nouvelle version (%1$s) de Tadami Terebi est disponible.</string>
+    <string name="update_download">Télécharger</string>
+    <string name="update_install">Installer</string>
+    <string name="update_skip">Ignorer</string>
+    <string name="update_retry">Réessayer</string>
+    <string name="update_downloading">Téléchargement… %1$d%%</string>
+    <string name="update_download_failed">Échec du téléchargement. Veuillez réessayer.</string>
 </resources>
