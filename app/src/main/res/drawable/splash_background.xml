@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Cold-start splash (window background): the sender's tada glyph centered on #202125,
+     matching the phone's Theme.Tadami.SplashScreen. -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:drawable="@drawable/splash_solid" />
+    <item
+        android:width="160dp"
+        android:height="195dp"
+        android:gravity="center"
+        android:drawable="@drawable/ic_tada" />
+</layer-list>

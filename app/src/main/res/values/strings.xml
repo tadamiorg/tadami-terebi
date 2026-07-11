@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Tadami Terebi</string>
+    <!-- Release Cast App ID (matches the phone release). The debug variant overrides this in
+         src/debug/res/values/strings.xml with 85AB1CC3, mirroring the phone. -->
+    <string name="cast_receiver_id" translatable="false">DA2F4B1A</string>
+
+    <!-- Selection dialogs -->
+    <string name="dialog_video_source">Video source</string>
+    <string name="dialog_episodes">Episodes</string>
+    <string name="dialog_subtitles">Subtitles</string>
+    <string name="subtitles_off">Off</string>
+    <string name="subtitle_track">Track %1$d</string>
+
+    <!-- Player controls -->
+    <string name="chip_source">Source</string>
+    <string name="seek_seconds">%1$d seconds</string>
+    <string name="cd_previous_episode">Previous episode</string>
+    <string name="cd_next_episode">Next episode</string>
+    <string name="cd_play_pause">Play or pause</string>
+    <string name="cd_replay">Replay</string>
+    <string name="cd_change_source">Change source</string>
+    <string name="cd_change_subtitles">Change subtitles</string>
+    <string name="cd_episodes">Episodes</string>
+
+    <!-- Crash screen -->
+    <string name="crash_title">Tadami TV crashed</string>
+    <string name="crash_message">The error log was sent to your phone (or will be sent the next time it connects). You can also read it below.</string>
+</resources>

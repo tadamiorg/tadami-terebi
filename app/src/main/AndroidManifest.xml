@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+
+    <uses-feature
+        android:name="android.hardware.touchscreen"
+        android:required="false" />
+    <uses-feature
+        android:name="android.software.leanback"
+        android:required="true" />
+
+    <application
+        android:name=".TerebiApp"
+        android:allowBackup="false"
+        android:banner="@drawable/banner"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.TadamiTerebi"
+        android:largeHeap="true"
+        android:usesCleartextTraffic="true">
+
+        <!-- Cast Connect receiver options provider -->
+        <meta-data
+            android:name="com.google.android.gms.cast.tv.RECEIVER_OPTIONS_PROVIDER_CLASS_NAME"
+            android:value="com.sf.tadami.terebi.receiver.ReceiverOptionsProvider" />
+
+        <activity
+            android:name=".ui.PlaybackActivity"
+            android:exported="true"
+            android:configChanges="orientation|keyboard|keyboardHidden|screenSize|screenLayout|uiMode|smallestScreenSize"
+            android:launchMode="singleTask"
+            android:screenOrientation="landscape"
+            android:theme="@style/Theme.TadamiTerebi">
+
+            <!-- TV launcher entry -->
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
+            </intent-filter>
+
+            <!-- Cast Connect: launch the receiver -->
+            <intent-filter>
+                <action android:name="com.google.android.gms.cast.tv.action.LAUNCH" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+
+            <!-- Cast Connect: load media -->
+            <intent-filter>
+                <action android:name="com.google.android.gms.cast.tv.action.LOAD" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+
+        <!-- Crash screen: separate process so it survives the crashing main process. -->
+        <activity
+            android:name=".crash.CrashActivity"
+            android:exported="false"
+            android:process=":crash"
+            android:configChanges="orientation|keyboard|keyboardHidden|screenSize|screenLayout|uiMode|smallestScreenSize"
+            android:launchMode="singleTask"
+            android:screenOrientation="landscape"
+            android:theme="@style/Theme.TadamiTerebi" />
+    </application>
+</manifest>

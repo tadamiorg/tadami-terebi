@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Debug Cast App ID (matches the phone debug build). Overrides the release DA2F4B1A so the
+         .debug package targets its own registered receiver. -->
+    <string name="cast_receiver_id" translatable="false">85AB1CC3</string>
+</resources>

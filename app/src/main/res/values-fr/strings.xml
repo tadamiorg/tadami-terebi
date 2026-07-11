@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Selection dialogs -->
+    <string name="dialog_video_source">Source vidéo</string>
+    <string name="dialog_episodes">Épisodes</string>
+    <string name="dialog_subtitles">Sous-titres</string>
+    <string name="subtitles_off">Désactivés</string>
+    <string name="subtitle_track">Piste %1$d</string>
+
+    <!-- Player controls -->
+    <string name="chip_source">Source</string>
+    <string name="seek_seconds">%1$d secondes</string>
+    <string name="cd_previous_episode">Épisode précédent</string>
+    <string name="cd_next_episode">Épisode suivant</string>
+    <string name="cd_play_pause">Lecture ou pause</string>
+    <string name="cd_replay">Revoir</string>
+    <string name="cd_change_source">Changer de source</string>
+    <string name="cd_change_subtitles">Changer les sous-titres</string>
+    <string name="cd_episodes">Épisodes</string>
+
+    <!-- Crash screen -->
+    <string name="crash_title">Tadami TV a planté</string>
+    <string name="crash_message">Le journal d\'erreurs a été envoyé à votre téléphone (ou le sera à la prochaine connexion). Vous pouvez aussi le lire ci-dessous.</string>
+</resources>

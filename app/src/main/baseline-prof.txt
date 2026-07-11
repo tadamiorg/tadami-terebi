@@ -1,0 +1,6 @@
+# Baseline profile (Human-Readable Format). AGP merges this with the baseline profiles that
+# Compose / tv-material / media3 already ship, packages them into assets/dexopt/baseline.prof,
+# and androidx.profileinstaller has ART AOT-compile them at install (release builds).
+# Precompile all of the receiver's own classes/methods (hot + startup + post-startup).
+HSPLcom/sf/tadami/terebi/**->**(**)**
+Lcom/sf/tadami/terebi/**;
