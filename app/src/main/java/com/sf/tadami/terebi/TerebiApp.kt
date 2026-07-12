@@ -42,11 +42,15 @@ class TerebiApp : Application() {
             CastReceiverContext.getInstance().setMessageReceivedListener(
                 CastProtocol.HANDSHAKE_NAMESPACE,
             ) { _, _, message ->
-                val minReceiver = runCatching { JSONObject(message).optInt("minReceiverProtocol", 1) }
-                    .getOrDefault(1)
+                val json = runCatching { JSONObject(message) }.getOrNull()
+                val minReceiver = json?.optInt(CastProtocol.MIN_RECEIVER_KEY, 1) ?: 1
                 if (CastProtocol.RECEIVER_VERSION < minReceiver) {
                     UpdateController.requireUpdate()
                 }
+                // Reverse gate: flag when the phone is older than we require (recomputed each
+                // handshake so a compatible reconnect clears the block).
+                val senderProtocol = json?.optInt(CastProtocol.SENDER_KEY, 1) ?: 1
+                UpdateController.setSenderOutdated(senderProtocol < CastProtocol.MIN_SENDER_VERSION)
             }
         }.onFailure { Log.e("TerebiApp", "handshake listener registration failed", it) }
     }

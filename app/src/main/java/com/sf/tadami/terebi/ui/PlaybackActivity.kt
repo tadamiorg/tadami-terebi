@@ -25,6 +25,7 @@ import com.sf.tadami.terebi.player.ControlSender
 import com.sf.tadami.terebi.player.PlayerManager
 import com.sf.tadami.terebi.receiver.TadamiMediaCommandCallback
 import com.sf.tadami.terebi.receiver.TadamiMediaLoadCallback
+import com.sf.tadami.terebi.update.OutdatedSenderDialog
 import com.sf.tadami.terebi.update.TvAppUpdater
 import com.sf.tadami.terebi.update.UpdateController
 import com.sf.tadami.terebi.update.UpdateDialog
@@ -70,6 +71,7 @@ class PlaybackActivity : ComponentActivity() {
                 playerManager = playerManager,
                 uiExecutor = uiExecutor,
                 onIncompatible = { UpdateController.requireUpdate() },
+                onSenderOutdated = { UpdateController.setSenderOutdated(true) },
             ) { loadRequestData ->
                 mediaManager.setDataFromLoad(loadRequestData)
                 mediaManager.broadcastMediaStatus()
@@ -87,12 +89,14 @@ class PlaybackActivity : ComponentActivity() {
             val themeColors by playerManager.themeColors.collectAsState()
             val updateRequired by UpdateController.required.collectAsState()
             val updateAvailable by UpdateController.available.collectAsState()
+            val senderOutdated by UpdateController.senderOutdated.collectAsState()
             TadamiTerebiTheme(colors = themeColors) {
                 Surface(modifier = Modifier.fillMaxSize()) {
                     Box(modifier = Modifier.fillMaxSize()) {
                         PlaybackScreen(playerManager)
                         when {
                             updateRequired -> UpdateDialog(release = null, forced = true, onDismiss = {})
+                            senderOutdated -> OutdatedSenderDialog(onExit = { finish() })
                             updateAvailable != null -> UpdateDialog(
                                 release = updateAvailable,
                                 forced = false,

@@ -17,6 +17,7 @@ class TadamiMediaLoadCallback(
     private val playerManager: PlayerManager,
     private val uiExecutor: Executor,
     private val onIncompatible: () -> Unit,
+    private val onSenderOutdated: () -> Unit,
     private val onLoaded: (MediaLoadRequestData) -> Unit,
 ) : MediaLoadCommandCallback() {
 
@@ -32,6 +33,13 @@ class TadamiMediaLoadCallback(
             val minReceiver = info.customData?.optInt(CastProtocol.MIN_RECEIVER_KEY, 1) ?: 1
             if (CastProtocol.RECEIVER_VERSION < minReceiver) {
                 onIncompatible()
+                return@Callable loadRequestData
+            }
+            // Reverse gate: if the phone is older than this receiver requires, refuse to play and
+            // show the "update your phone app" dialog instead.
+            val senderProtocol = info.customData?.optInt(CastProtocol.SENDER_KEY, 1) ?: 1
+            if (senderProtocol < CastProtocol.MIN_SENDER_VERSION) {
+                onSenderOutdated()
                 return@Callable loadRequestData
             }
             val startMs = loadRequestData.currentTime.coerceAtLeast(0L)

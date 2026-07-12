@@ -184,7 +184,7 @@ fun UpdateDialog(
 }
 
 @Composable
-private fun DialogButton(
+internal fun DialogButton(
     text: String,
     enabled: Boolean,
     modifier: Modifier = Modifier,

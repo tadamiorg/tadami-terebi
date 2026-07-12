@@ -12,6 +12,9 @@ import kotlinx.coroutines.flow.StateFlow
  *   a blocking (non-skippable) update dialog is shown and playback is refused.
  * - [available]: a newer release exists but the current build is still compatible → a dismissible
  *   ("skip") update dialog is offered. Suppressed once [required] is set.
+ * - [senderOutdated]: the connected phone speaks an older protocol than this receiver requires →
+ *   a blocking dialog asks the user to update the phone app (the TV can't update it), and playback
+ *   is refused. This is the reverse of [required].
  */
 object UpdateController {
 
@@ -20,6 +23,9 @@ object UpdateController {
 
     private val _available = MutableStateFlow<GithubRelease?>(null)
     val available: StateFlow<GithubRelease?> = _available
+
+    private val _senderOutdated = MutableStateFlow(false)
+    val senderOutdated: StateFlow<Boolean> = _senderOutdated
 
     /** Called from the load callback when the phone requires a newer receiver protocol. */
     fun requireUpdate() {
@@ -34,5 +40,15 @@ object UpdateController {
 
     fun dismissAvailable() {
         _available.value = null
+    }
+
+    /**
+     * Called from the handshake and load paths with whether the connected phone is too old. Set
+     * from the freshly-read protocol each time (not latched) so a later compatible reconnect within
+     * the same process clears the block. Clears any pending optional update while blocked.
+     */
+    fun setSenderOutdated(outdated: Boolean) {
+        _senderOutdated.value = outdated
+        if (outdated) _available.value = null
     }
 }

@@ -33,4 +33,7 @@
     <string name="update_retry">Réessayer</string>
     <string name="update_downloading">Téléchargement… %1$d%%</string>
     <string name="update_download_failed">Échec du téléchargement. Veuillez réessayer.</string>
+    <string name="update_sender_title">Mettez à jour votre téléphone</string>
+    <string name="update_sender_message">L\'application Tadami sur votre téléphone est trop ancienne pour diffuser vers ce téléviseur. Mettez-la à jour vers la dernière version, puis réessayez.</string>
+    <string name="update_exit">Quitter</string>
 </resources>

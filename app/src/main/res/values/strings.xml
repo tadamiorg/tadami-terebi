@@ -38,4 +38,7 @@
     <string name="update_retry">Retry</string>
     <string name="update_downloading">Downloading… %1$d%%</string>
     <string name="update_download_failed">Download failed. Please try again.</string>
+    <string name="update_sender_title">Update your phone app</string>
+    <string name="update_sender_message">The Tadami app on your phone is out of date and can no longer cast to this TV. Update it to the latest version on your phone, then try again.</string>
+    <string name="update_exit">Exit</string>
 </resources>
