@@ -38,4 +38,15 @@ object ControlSender {
 
     fun selectEpisode(episodeId: Long, positionMs: Long, durationMs: Long) =
         send(TvControlMessage("selectEpisode", positionMs, durationMs, episodeId = episodeId))
+
+    /** TV → phone: the current source/subtitle/audio selection, so the phone cast UI mirrors TV-local changes. */
+    fun state(sourceIndex: Int, subtitleIndex: Int?, audioIndex: Int) =
+        send(
+            TvControlMessage(
+                "state",
+                sourceIndex = sourceIndex,
+                subtitleIndex = subtitleIndex ?: -1,
+                audioIndex = audioIndex,
+            )
+        )
 }

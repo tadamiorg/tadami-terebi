@@ -29,6 +29,7 @@ import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
 import com.sf.tadami.terebi.R
 import com.sf.tadami.terebi.player.TvEpisode
+import com.sf.tadami.terebi.player.TvAudioTrack
 import com.sf.tadami.terebi.player.TvStreamSource
 import com.sf.tadami.terebi.player.TvSubtitleTrack
 
@@ -160,6 +161,29 @@ fun SubtitleDialog(
                 DialogRow(
                     label = track.lang.ifBlank { stringResource(R.string.subtitle_track, index + 1) },
                     selected = selectedIndex == index,
+                    onClick = { onSelect(index) },
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun AudioDialog(
+    tracks: List<TvAudioTrack>,
+    selectedIndex: Int,
+    onSelect: (Int) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val firstFocus = remember { FocusRequester() }
+    LaunchedEffect(Unit) { runCatching { firstFocus.requestFocus() } }
+    DialogScaffold(title = stringResource(R.string.dialog_audio), onDismiss = onDismiss) {
+        LazyColumn(Modifier.fillMaxWidth()) {
+            itemsIndexed(tracks) { index, track ->
+                DialogRow(
+                    label = track.lang.ifBlank { stringResource(R.string.audio_track, index + 1) },
+                    selected = selectedIndex == index,
+                    modifier = if (index == 0) Modifier.focusRequester(firstFocus) else Modifier,
                     onClick = { onSelect(index) },
                 )
             }

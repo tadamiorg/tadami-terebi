@@ -1,5 +1,6 @@
 package com.sf.tadami.terebi.ui
 
+import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
 import androidx.annotation.OptIn
@@ -31,6 +32,7 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Replay
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
+import androidx.compose.material.icons.filled.Audiotrack
 import androidx.compose.material.icons.filled.Subtitles
 import androidx.compose.material.icons.filled.VideoSettings
 import androidx.compose.material3.CircularProgressIndicator
@@ -76,6 +78,7 @@ import androidx.tv.material3.Text
 import com.sf.tadami.terebi.R
 import com.sf.tadami.terebi.player.ControlSender
 import com.sf.tadami.terebi.player.PlayerManager
+import com.sf.tadami.terebi.player.subtitles.PlayerSubtitleView
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.first
@@ -97,12 +100,13 @@ fun PlaybackScreen(playerManager: PlayerManager) {
     val controlPokes = remember { MutableSharedFlow<Unit>(extraBufferCapacity = 1) }
     var showSourceDialog by remember { mutableStateOf(false) }
     var showSubtitleDialog by remember { mutableStateOf(false) }
+    var showAudioDialog by remember { mutableStateOf(false) }
     var showEpisodeDialog by remember { mutableStateOf(false) }
 
     val rootFocus = remember { FocusRequester() }
     val playFocus = remember { FocusRequester() }
 
-    val dialogOpen = showSourceDialog || showSubtitleDialog || showEpisodeDialog
+    val dialogOpen = showSourceDialog || showSubtitleDialog || showAudioDialog || showEpisodeDialog
 
     // Episode position within the (source-order) list drives next/previous availability and
     // mirrors the phone's iterator: "next" = the entry before the current one.
@@ -243,8 +247,17 @@ fun PlaybackScreen(playerManager: PlayerManager) {
                         ViewGroup.LayoutParams.MATCH_PARENT,
                         ViewGroup.LayoutParams.MATCH_PARENT,
                     )
+                    // Hidden — subtitles are drawn by the custom Compose overlay below.
+                    subtitleView?.visibility = View.GONE
                 }
             },
+        )
+
+        val subtitleStyle by playerManager.subtitleStyle.collectAsState()
+        PlayerSubtitleView(
+            player = playerManager.player,
+            style = subtitleStyle,
+            modifier = Modifier.fillMaxSize(),
         )
 
         // Splash / idle screen while waiting for the phone to cast something.
@@ -270,6 +283,10 @@ fun PlaybackScreen(playerManager: PlayerManager) {
                         ?.let { snapshot.subtitles.getOrNull(it)?.lang?.ifBlank { stringResource(R.string.subtitle_track, it + 1) } }
                         ?: stringResource(R.string.subtitles_off)
                 },
+                audioEnabled = snapshot.audioTracks.size > 1,
+                audioLabel = snapshot.audioTracks.getOrNull(snapshot.selectedAudioIndex)?.lang
+                    ?.ifBlank { stringResource(R.string.dialog_audio) }
+                    ?: stringResource(R.string.dialog_audio),
                 episodesEnabled = snapshot.episodes.isNotEmpty(),
                 hasNext = hasNext,
                 hasPrevious = hasPrevious,
@@ -281,6 +298,7 @@ fun PlaybackScreen(playerManager: PlayerManager) {
                 onSeek = { ms -> playerManager.seekTo(ms); positionMs = ms; controlPokes.tryEmit(Unit) },
                 onSources = { showSourceDialog = true },
                 onSubtitles = { showSubtitleDialog = true },
+                onAudio = { showAudioDialog = true },
                 onEpisodes = { showEpisodeDialog = true },
                 onNext = {
                     ControlSender.next(positionMs, snapshot.durationMs)
@@ -349,6 +367,18 @@ fun PlaybackScreen(playerManager: PlayerManager) {
                 onDismiss = { showSubtitleDialog = false },
             )
         }
+
+        if (showAudioDialog) {
+            AudioDialog(
+                tracks = snapshot.audioTracks,
+                selectedIndex = snapshot.selectedAudioIndex,
+                onSelect = { index ->
+                    showAudioDialog = false
+                    playerManager.selectAudio(index)
+                },
+                onDismiss = { showAudioDialog = false },
+            )
+        }
     }
 }
 
@@ -364,6 +394,8 @@ private fun ControlsScrim(
     sourceLabel: String,
     subtitlesEnabled: Boolean,
     subtitleLabel: String,
+    audioEnabled: Boolean,
+    audioLabel: String,
     episodesEnabled: Boolean,
     hasNext: Boolean,
     hasPrevious: Boolean,
@@ -375,6 +407,7 @@ private fun ControlsScrim(
     onSeek: (Long) -> Unit,
     onSources: () -> Unit,
     onSubtitles: () -> Unit,
+    onAudio: () -> Unit,
     onEpisodes: () -> Unit,
     onNext: () -> Unit,
     onPrevious: () -> Unit,
@@ -484,6 +517,14 @@ private fun ControlsScrim(
                         onClick = onSubtitles,
                         enabled = subtitlesEnabled,
                     )
+                    if (audioEnabled) {
+                        PlayerChip(
+                            imageVector = Icons.Filled.Audiotrack,
+                            label = audioLabel,
+                            contentDescription = stringResource(R.string.cd_change_audio),
+                            onClick = onAudio,
+                        )
+                    }
                 }
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(12.dp),

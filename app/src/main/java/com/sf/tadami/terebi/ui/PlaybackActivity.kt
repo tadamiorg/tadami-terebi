@@ -23,6 +23,8 @@ import com.sf.tadami.terebi.BuildConfig
 import com.sf.tadami.terebi.crash.CrashReporter
 import com.sf.tadami.terebi.player.ControlSender
 import com.sf.tadami.terebi.player.PlayerManager
+import com.sf.tadami.terebi.player.TvControlMessage
+import kotlinx.serialization.json.Json
 import com.sf.tadami.terebi.receiver.TadamiMediaCommandCallback
 import com.sf.tadami.terebi.receiver.TadamiMediaLoadCallback
 import com.sf.tadami.terebi.update.OutdatedSenderDialog
@@ -40,6 +42,7 @@ class PlaybackActivity : ComponentActivity() {
     private lateinit var playerManager: PlayerManager
     private lateinit var mediaManager: MediaManager
     private val uiExecutor = Executor { runnable -> runOnUiThread(runnable) }
+    private val controlJson = Json { ignoreUnknownKeys = true; isLenient = true }
 
     /**
      * When the phone sender disconnects (stops casting / closes / drops the connection) the
@@ -63,6 +66,12 @@ class PlaybackActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // Start the receiver context BEFORE routing the launching LOAD (onNewIntent below). On a cold launch
+        // the ProcessLifecycleOwner.onStart start() (TerebiApp) only fires after onCreate returns, so without
+        // this the first LOAD reaches the MediaManager before the context is started and is dropped — the app
+        // then only loads on a warm reconnect. start() is idempotent, so the lifecycle observer still manages
+        // background stop()/re-foreground start().
+        CastReceiverContext.getInstance().start()
         playerManager = PlayerManager(this)
 
         mediaManager = CastReceiverContext.getInstance().mediaManager
@@ -84,6 +93,22 @@ class PlaybackActivity : ComponentActivity() {
 
         // Detect sender disconnect so we can shut the receiver down (see eventCallback).
         CastReceiverContext.getInstance().registerEventCallback(eventCallback)
+
+        // Inbound phone → TV control (select audio/source/subtitle, subtitle style). The same namespace the TV
+        // sends on; here we receive the sender's commands and apply them on the UI thread.
+        CastReceiverContext.getInstance().setMessageReceivedListener(ControlSender.NAMESPACE) { _, _, message ->
+            val msg = runCatching {
+                controlJson.decodeFromString(TvControlMessage.serializer(), message)
+            }.getOrNull() ?: return@setMessageReceivedListener
+            runOnUiThread {
+                when (msg.type) {
+                    "selectAudio" -> msg.audioIndex?.let { playerManager.selectAudio(it) }
+                    "selectSubtitle" -> playerManager.selectSubtitle(msg.subtitleIndex?.takeIf { it >= 0 })
+                    "selectSource" -> msg.sourceIndex?.let { playerManager.switchSource(it) }
+                    "subtitleStyle" -> msg.subtitleStyle?.let { playerManager.setSubtitleStyle(it) }
+                }
+            }
+        }
 
         setContent {
             val themeColors by playerManager.themeColors.collectAsState()
@@ -213,6 +238,8 @@ class PlaybackActivity : ComponentActivity() {
     companion object {
         private const val PROGRESS_INTERVAL_S = 5
         /** Keepalive cadence for the (costly) Cast MediaStatus broadcast; state changes broadcast immediately. */
-        private const val BROADCAST_INTERVAL_S = 3
+        // Keepalive cadence for the costly main-thread broadcastMediaStatus() serialize. Play/pause and
+        // first-duration still broadcast immediately; the phone interpolates position in between.
+        private const val BROADCAST_INTERVAL_S = 6
     }
 }

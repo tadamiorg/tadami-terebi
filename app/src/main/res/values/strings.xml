@@ -11,6 +11,8 @@
     <string name="dialog_subtitles">Subtitles</string>
     <string name="subtitles_off">Off</string>
     <string name="subtitle_track">Track %1$d</string>
+    <string name="dialog_audio">Audio</string>
+    <string name="audio_track">Track %1$d</string>
 
     <!-- Player controls -->
     <string name="chip_source">Source</string>
@@ -21,6 +23,7 @@
     <string name="cd_replay">Replay</string>
     <string name="cd_change_source">Change source</string>
     <string name="cd_change_subtitles">Change subtitles</string>
+    <string name="cd_change_audio">Change audio</string>
     <string name="cd_episodes">Episodes</string>
 
     <!-- Crash screen -->

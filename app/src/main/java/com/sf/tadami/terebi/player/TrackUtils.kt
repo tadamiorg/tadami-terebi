@@ -3,6 +3,9 @@ package com.sf.tadami.terebi.player
 import androidx.media3.common.MimeTypes
 import java.util.Locale
 
+/** Stable id prefix set on each subtitle config so it can be selected by an explicit track override. */
+const val SUBTITLE_ID_PREFIX = "tadami_sub_"
+
 /** Ported from the phone's StringExtensions.convertToIetfLanguageTag(). */
 fun convertToIetfLanguageTag(lang: String): String {
     val input = lang.lowercase(Locale.ROOT)

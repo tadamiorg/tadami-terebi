@@ -11,7 +11,7 @@ import com.sf.tadami.terebi.update.CastProtocol.RECEIVER_VERSION
  */
 object CastProtocol {
     /** Protocol version this receiver build implements. */
-    const val RECEIVER_VERSION = 1
+    const val RECEIVER_VERSION = 2
 
     /** customData key the phone uses to advertise the minimum receiver protocol it requires. */
     const val MIN_RECEIVER_KEY = "minReceiverProtocol"
