@@ -1,4 +1,4 @@
-# Tadami Terebi (タダ見テレビ) v1.0.0
+# Tadami Terebi (タダ見テレビ) v2.0.0
 
 Tadami Terebi is the Android TV **Cast Connect receiver** companion to
 [Tadami](https://github.com/tadamiorg/tadami). It runs on Android TV / Google TV and plays the

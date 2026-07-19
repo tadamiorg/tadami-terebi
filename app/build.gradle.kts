@@ -9,8 +9,8 @@ android {
 
     defaultConfig {
         applicationId = "com.sf.tadami.terebi"
-        versionCode = 1
-        versionName = "1.0.0"
+        versionCode = 2
+        versionName = "2.0.0"
     }
 
     signingConfigs {
@@ -55,6 +55,14 @@ android {
         resources {
             excludes.add("/META-INF/{AL2.0,LGPL2.1}")
             excludes.add("META-INF/INDEX.LIST")
+        }
+    }
+}
+
+androidComponents {
+    onVariants { variant ->
+        variant.outputs.forEach { output ->
+            output.outputFileName.set("tadami-terebi.apk")
         }
     }
 }
