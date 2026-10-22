@@ -348,7 +348,9 @@ class SeekPreviewPlayer(
                 isSoftware = { it.softwareOnly },
                 maxInstances = { it.capabilities?.maxSupportedInstances ?: 0 },
             ).also { allowed ->
-                Log.d(TAG, "Decoders for $mimeType: ${all.map { it.name }}, preview may use ${allowed.map { it.name }}")
+                if (allowed.isEmpty() && all.isNotEmpty()) {
+                    Log.w(TAG, "No decoder to spare for $mimeType among ${all.map { it.name }}")
+                }
             }
         }
 
