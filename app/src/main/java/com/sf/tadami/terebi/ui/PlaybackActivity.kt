@@ -21,6 +21,7 @@ import com.google.android.gms.cast.tv.SenderInfo
 import com.google.android.gms.cast.tv.media.MediaManager
 import com.sf.tadami.terebi.BuildConfig
 import com.sf.tadami.terebi.crash.CrashReporter
+import com.sf.tadami.terebi.debug.DebugPlayback
 import com.sf.tadami.terebi.player.ControlSender
 import com.sf.tadami.terebi.player.PlayerManager
 import com.sf.tadami.terebi.player.TvControlMessage
@@ -138,6 +139,7 @@ class PlaybackActivity : ComponentActivity() {
 
         // Route the launch/load intent into the MediaManager.
         mediaManager.onNewIntent(intent)
+        DebugPlayback.handle(intent, playerManager)
     }
 
     /**
@@ -218,6 +220,7 @@ class PlaybackActivity : ComponentActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         mediaManager.onNewIntent(intent)
+        DebugPlayback.handle(intent, playerManager)
     }
 
     override fun onStop() {
