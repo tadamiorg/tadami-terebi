@@ -37,6 +37,7 @@ import androidx.compose.material.icons.filled.Subtitles
 import androidx.compose.material.icons.filled.VideoSettings
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -59,6 +60,8 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
+import androidx.compose.ui.layout.LayoutCoordinates
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -78,6 +81,7 @@ import androidx.tv.material3.Text
 import com.sf.tadami.terebi.R
 import com.sf.tadami.terebi.player.ControlSender
 import com.sf.tadami.terebi.player.PlayerManager
+import com.sf.tadami.terebi.player.preview.SeekPreviewPlayer
 import com.sf.tadami.terebi.player.subtitles.PlayerSubtitleView
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -129,7 +133,12 @@ fun PlaybackScreen(playerManager: PlayerManager) {
 
     // Commit the quick-seek shortly after the last press, then hide the mini overlay.
     LaunchedEffect(quickSeekMs) {
-        val target = quickSeekMs ?: return@LaunchedEffect
+        val target = quickSeekMs
+        if (target == null) {
+            playerManager.seekPreview.endScrub()
+            return@LaunchedEffect
+        }
+        playerManager.seekPreview.scrubTo(target, snapshot.durationMs)
         delay(500)
         playerManager.seekTo(target)
         positionMs = target
@@ -234,6 +243,9 @@ fun PlaybackScreen(playerManager: PlayerManager) {
                 }
             },
     ) {
+        // Under the video, whose surface hides it
+        SeekPreviewSurface(playerManager.seekPreview, Modifier.align(Alignment.Center))
+
         AndroidView(
             modifier = Modifier.fillMaxSize(),
             factory = { ctx ->
@@ -291,6 +303,7 @@ fun PlaybackScreen(playerManager: PlayerManager) {
                 hasNext = hasNext,
                 hasPrevious = hasPrevious,
                 playFocus = playFocus,
+                preview = playerManager.seekPreview,
                 onDismiss = { controlsVisible = false },
                 onReplay = { playerManager.replay(); controlPokes.tryEmit(Unit) },
                 onPlayPause = { playerManager.playPause(); controlPokes.tryEmit(Unit) },
@@ -317,6 +330,7 @@ fun PlaybackScreen(playerManager: PlayerManager) {
                 accumSec = quickSeekAccumSec,
                 positionMs = quickSeekMs ?: positionMs,
                 durationMs = snapshot.durationMs,
+                preview = playerManager.seekPreview,
             )
         }
 
@@ -400,6 +414,7 @@ private fun ControlsScrim(
     hasNext: Boolean,
     hasPrevious: Boolean,
     playFocus: FocusRequester,
+    preview: SeekPreviewPlayer,
     onDismiss: () -> Unit,
     onReplay: () -> Unit,
     onPlayPause: () -> Unit,
@@ -491,7 +506,7 @@ private fun ControlsScrim(
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             // Isolated so the 2 Hz position tick only recomposes this row, not the whole scrim.
-            SeekBarRow(positionProvider = positionProvider, durationMs = durationMs, onSeek = onSeek)
+            SeekBarRow(positionProvider = positionProvider, durationMs = durationMs, preview = preview, onSeek = onSeek)
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -548,6 +563,7 @@ private fun ControlsScrim(
 private fun SeekBarRow(
     positionProvider: () -> Long,
     durationMs: Long,
+    preview: SeekPreviewPlayer,
     onSeek: (Long) -> Unit,
 ) {
     val positionMs = positionProvider()
@@ -560,6 +576,7 @@ private fun SeekBarRow(
         SeekTimeline(
             positionMs = positionMs,
             durationMs = durationMs,
+            preview = preview,
             onSeek = onSeek,
             modifier = Modifier.weight(1f),
         )
@@ -567,22 +584,36 @@ private fun SeekBarRow(
     }
 }
 
-/** D-pad-seekable timeline styled like the phone's slider: rounded track, primary fill + thumb. */
+/**
+ * D-pad-seekable timeline styled like the phone's slider: rounded track, primary fill + thumb. While a
+ * D-pad scrub is pending, the [preview] frame of the target shows above the thumb.
+ */
+@OptIn(UnstableApi::class)
 @Composable
 private fun SeekTimeline(
     positionMs: Long,
     durationMs: Long,
+    preview: SeekPreviewPlayer,
     onSeek: (Long) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val seekable = durationMs > 0
     var focused by remember { mutableStateOf(false) }
     var scrubMs by remember { mutableStateOf<Long?>(null) }
+    var trackCoordinates by remember { mutableStateOf<LayoutCoordinates?>(null) }
     val displayMs = scrubMs ?: positionMs
     val fraction = if (durationMs > 0) (displayMs.toFloat() / durationMs).coerceIn(0f, 1f) else 0f
 
+    // Controls hidden mid-scrub: the preview stops fetching
+    DisposableEffect(Unit) { onDispose { preview.endScrub() } }
+
     LaunchedEffect(scrubMs) {
-        val target = scrubMs ?: return@LaunchedEffect
+        val target = scrubMs
+        if (target == null) {
+            preview.endScrub()
+            return@LaunchedEffect
+        }
+        preview.scrubTo(target, durationMs)
         delay(600)
         onSeek(target)
         scrubMs = null
@@ -621,6 +652,7 @@ private fun SeekTimeline(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
+                .onGloballyPositioned { trackCoordinates = it }
                 .height(trackHeight)
                 .background(
                     MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f),
@@ -647,6 +679,15 @@ private fun SeekTimeline(
                 )
             }
         }
+        scrubMs?.let { target ->
+            SeekPreviewAnchor(
+                preview = preview,
+                positionMs = target,
+                durationMs = durationMs,
+                track = { trackCoordinates },
+                modifier = Modifier.align(Alignment.TopStart),
+            )
+        }
     }
 }
 
@@ -654,8 +695,9 @@ private fun SeekTimeline(
  * Hidden-controls quick-seek feedback, mirroring the phone's double-tap: a primary-tinted flash on
  * the seeked half with pulsing chevrons + the accumulated seconds, plus a minimal bottom timeline.
  */
+@OptIn(UnstableApi::class)
 @Composable
-private fun QuickSeekOverlay(accumSec: Long, positionMs: Long, durationMs: Long) {
+private fun QuickSeekOverlay(accumSec: Long, positionMs: Long, durationMs: Long, preview: SeekPreviewPlayer) {
     val forward = accumSec >= 0
     Box(modifier = Modifier.fillMaxSize()) {
         Box(
@@ -680,6 +722,7 @@ private fun QuickSeekOverlay(accumSec: Long, positionMs: Long, durationMs: Long)
         QuickSeekBar(
             positionMs = positionMs,
             durationMs = durationMs,
+            preview = preview,
             modifier = Modifier.align(Alignment.BottomStart),
         )
     }
@@ -724,10 +767,15 @@ private fun SeekChevron(alpha: Float, reversed: Boolean) {
     )
 }
 
-/** Minimal timeline (position — track+fill — duration) shown during hidden-controls quick-seek. */
+/**
+ * Minimal timeline (position — track+fill — duration) shown during hidden-controls quick-seek, with the
+ * [preview] frame of the pending target above the fill end.
+ */
+@OptIn(UnstableApi::class)
 @Composable
-private fun QuickSeekBar(positionMs: Long, durationMs: Long, modifier: Modifier = Modifier) {
+private fun QuickSeekBar(positionMs: Long, durationMs: Long, preview: SeekPreviewPlayer, modifier: Modifier = Modifier) {
     val fraction = if (durationMs > 0) (positionMs.toFloat() / durationMs).coerceIn(0f, 1f) else 0f
+    var trackCoordinates by remember { mutableStateOf<LayoutCoordinates?>(null) }
     Row(
         modifier = modifier
             .fillMaxWidth()
@@ -739,6 +787,7 @@ private fun QuickSeekBar(positionMs: Long, durationMs: Long, modifier: Modifier 
         Box(
             modifier = Modifier
                 .weight(1f)
+                .onGloballyPositioned { trackCoordinates = it }
                 .height(6.dp)
                 .background(
                     MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f),
@@ -750,6 +799,12 @@ private fun QuickSeekBar(positionMs: Long, durationMs: Long, modifier: Modifier 
                     .fillMaxWidth(fraction)
                     .height(6.dp)
                     .background(MaterialTheme.colorScheme.primary, RoundedCornerShape(50)),
+            )
+            SeekPreviewAnchor(
+                preview = preview,
+                positionMs = positionMs,
+                durationMs = durationMs,
+                track = { trackCoordinates },
             )
         }
         Text(durationMs.formatMinSec(), style = MaterialTheme.typography.labelLarge)

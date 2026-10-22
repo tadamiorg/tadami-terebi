@@ -100,4 +100,6 @@ dependencies {
 
     // Installs the baseline profile (app + merged library profiles) so ART AOT-compiles hot paths.
     implementation(libs.androidx.profileinstaller)
+
+    testImplementation(libs.junit)
 }

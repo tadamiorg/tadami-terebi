@@ -229,7 +229,14 @@ class PlaybackActivity : ComponentActivity() {
         if (duration > 0L) {
             ControlSender.save(playerManager.player.currentPosition.coerceAtLeast(0L), duration)
         }
+        // Frees the preview decoder in the background; its frames are kept
+        playerManager.seekPreview.release()
         super.onStop()
+    }
+
+    override fun onTrimMemory(level: Int) {
+        super.onTrimMemory(level)
+        playerManager.seekPreview.onTrimMemory(level)
     }
 
     override fun onDestroy() {
