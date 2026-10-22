@@ -8,6 +8,7 @@ import android.support.v4.media.session.PlaybackStateCompat
 import androidx.annotation.OptIn
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
+import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.TrackSelectionOverride
 import androidx.media3.common.Tracks
@@ -24,6 +25,10 @@ import androidx.media3.exoplayer.source.MergingMediaSource
 import com.sf.tadami.terebi.player.subtitles.SubtitleStyle
 import com.google.android.gms.cast.MediaInfo
 import com.sf.tadami.terebi.player.subtitles.CustomSubtitleParserFactory
+import com.sf.tadami.terebi.player.preview.SeekPreviewPlayer
+import com.sf.tadami.terebi.player.preview.isDecoderError
+import com.sf.tadami.terebi.player.preview.mainPlayerCanSpareNetwork
+import com.sf.tadami.terebi.player.preview.previewSourceIdentity
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
@@ -118,6 +123,16 @@ class PlayerManager(context: Context) {
 
     val session = MediaSessionCompat(context, "TadamiTerebi")
 
+    /** Seekbar preview: a second player reading the stream through [mediaSourceFactory] (same headers and cache). */
+    val seekPreview = SeekPreviewPlayer(context) {
+        mainPlayerCanSpareNetwork(
+            isBuffering = player.playbackState == Player.STATE_BUFFERING,
+            bufferedAheadMs = player.totalBufferedDuration,
+            bufferedPositionMs = player.bufferedPosition,
+            durationMs = player.duration,
+        )
+    }
+
     private val _snapshot = MutableStateFlow(Snapshot())
     val snapshot: StateFlow<Snapshot> = _snapshot
 
@@ -180,6 +195,11 @@ class PlayerManager(context: Context) {
                 if (!alreadySelected) applySubtitleSelection(index)
             }
 
+            override fun onPlayerError(error: PlaybackException) {
+                // The main player's decoder comes first: never risk taking one from it again this session
+                if (isDecoderError(error.errorCode)) seekPreview.disableForSession()
+            }
+
             override fun onEvents(p: Player, events: Player.Events) {
                 if (p.playbackState == Player.STATE_READY) setLoading(false)
                 updatePlaybackState()
@@ -235,6 +255,10 @@ class PlayerManager(context: Context) {
         currentAudioTracks = source.audioTracks
         currentHeaders = source.headers
         loadedContentUrl = source.url
+        // The video alone (no side-loaded subtitles nor separate audio), through the main player's factory
+        seekPreview.setSource(previewSourceIdentity(source)) {
+            mediaSourceFactory.createMediaSource(MediaItem.fromUri(source.url))
+        }
         val item = MediaItem.Builder()
             .setUri(source.url)
             .apply {
@@ -292,6 +316,7 @@ class PlayerManager(context: Context) {
             .orEmpty()
         currentSubtitles = subs
         currentHeaders = null
+        seekPreview.setSource(uri) { mediaSourceFactory.createMediaSource(MediaItem.fromUri(uri)) }
         val item = MediaItem.Builder()
             .setUri(uri)
             .apply {
@@ -494,6 +519,7 @@ class PlayerManager(context: Context) {
     }
 
     fun release() {
+        seekPreview.destroy()
         session.isActive = false
         session.release()
         player.release()
