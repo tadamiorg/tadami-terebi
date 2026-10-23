@@ -25,10 +25,12 @@ import androidx.media3.exoplayer.source.MergingMediaSource
 import com.sf.tadami.terebi.player.subtitles.SubtitleStyle
 import com.google.android.gms.cast.MediaInfo
 import com.sf.tadami.terebi.player.subtitles.CustomSubtitleParserFactory
+import com.sf.tadami.terebi.player.preview.MainPlayback
 import com.sf.tadami.terebi.player.preview.SeekPreviewPlayer
 import com.sf.tadami.terebi.player.preview.isDecoderError
 import com.sf.tadami.terebi.player.preview.mainPlayerCanSpareNetwork
 import com.sf.tadami.terebi.player.preview.previewSourceIdentity
+import com.sf.tadami.terebi.player.preview.readPreviewSidecar
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
@@ -123,15 +125,27 @@ class PlayerManager(context: Context) {
 
     val session = MediaSessionCompat(context, "TadamiTerebi")
 
-    /** Seekbar preview: a second player reading the stream through [mediaSourceFactory] (same headers and cache). */
-    val seekPreview = SeekPreviewPlayer(context) {
-        mainPlayerCanSpareNetwork(
-            isBuffering = player.playbackState == Player.STATE_BUFFERING,
-            bufferedAheadMs = player.totalBufferedDuration,
-            bufferedPositionMs = player.bufferedPosition,
-            durationMs = player.duration,
-        )
-    }
+    /**
+     * Seekbar preview, for a downloaded episode the phone serves only: its sidecar read through [resolvingFactory], or
+     * a second player reading it through [mediaSourceFactory] (same headers and cache).
+     */
+    val seekPreview = SeekPreviewPlayer(
+        context = context,
+        mainPlayback = {
+            MainPlayback(
+                positionMs = player.currentPosition.coerceAtLeast(0L),
+                durationMs = player.duration,
+                ready = player.playbackState == Player.STATE_READY,
+                canSpareNetwork = mainPlayerCanSpareNetwork(
+                    isBuffering = player.playbackState == Player.STATE_BUFFERING,
+                    bufferedAheadMs = player.totalBufferedDuration,
+                    bufferedPositionMs = player.bufferedPosition,
+                    durationMs = player.duration,
+                ),
+            )
+        },
+        readSidecar = { url -> readPreviewSidecar(resolvingFactory.createDataSource(), url) },
+    )
 
     private val _snapshot = MutableStateFlow(Snapshot())
     val snapshot: StateFlow<Snapshot> = _snapshot
@@ -256,7 +270,7 @@ class PlayerManager(context: Context) {
         currentHeaders = source.headers
         loadedContentUrl = source.url
         // The video alone (no side-loaded subtitles nor separate audio), through the main player's factory
-        seekPreview.setSource(previewSourceIdentity(source)) {
+        seekPreview.setSource(previewSourceIdentity(source), source.url) {
             mediaSourceFactory.createMediaSource(MediaItem.fromUri(source.url))
         }
         val item = MediaItem.Builder()
@@ -316,7 +330,7 @@ class PlayerManager(context: Context) {
             .orEmpty()
         currentSubtitles = subs
         currentHeaders = null
-        seekPreview.setSource(uri) { mediaSourceFactory.createMediaSource(MediaItem.fromUri(uri)) }
+        seekPreview.setSource(uri, uri) { mediaSourceFactory.createMediaSource(MediaItem.fromUri(uri)) }
         val item = MediaItem.Builder()
             .setUri(uri)
             .apply {

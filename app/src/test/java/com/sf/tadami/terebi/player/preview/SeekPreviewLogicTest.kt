@@ -124,6 +124,17 @@ class SeekPreviewLogicTest {
     }
 
     @Test
+    fun `the phone's steps fold a short leftover end step into the one before`() {
+        // 1,430,026 ms in 14,300 ms steps: step 100 is a 26 ms leftover
+        assertEquals(100, previewBucketOf(1_430_025, 1_430_026))
+        assertEquals(99, phonePreviewBucketOf(1_430_025, 1_430_026))
+        assertEquals(99, phonePreviewBucketOf(1_429_999, 1_430_026))
+        // A last step of half a step or more is kept
+        assertEquals(12, phonePreviewBucketOf(62_999, 63_000))
+        assertEquals(0, phonePreviewBucketOf(0, 0))
+    }
+
+    @Test
     fun `step ranges cover the video without gaps`() {
         assertEquals(0L until 14_400L, previewBucketRangeMs(0, episode))
         assertEquals(14_400L until 28_800L, previewBucketRangeMs(1, episode))
@@ -256,6 +267,131 @@ class SeekPreviewLogicTest {
         requests.next { false }
         requests.finished(9)
         assertEquals(2, requests.inFlight)
+    }
+
+    @Test
+    fun `the background decoding's step comes when none is scrubbed to`() {
+        val requests = BucketRequests()
+        assertEquals(7, requests.next(fallback = { 7 }) { false })
+        // One at a time
+        assertNull(requests.next(fallback = { 8 }) { false })
+        requests.finished(7)
+        // The step scrubbed to first
+        requests.aim(3)
+        assertEquals(3, requests.next(fallback = { 8 }) { false })
+        requests.finished(3)
+        // Done, it leaves room for the background one, never a done one
+        assertEquals(8, requests.next(fallback = { 8 }) { it == 3 })
+        requests.finished(8)
+        assertNull(requests.next(fallback = { 8 }) { it == 3 || it == 8 })
+    }
+
+    @Test
+    fun `the cache tells when another frame fits without dropping one`() {
+        val cache = cache(maxBytes = 300)
+        assertTrue(cache.hasRoomFor(100))
+        cache.put(PreviewFrameKey("a", 1), "a1")
+        cache.put(PreviewFrameKey("a", 2), "a2")
+        assertTrue(cache.hasRoomFor(100))
+        cache.put(PreviewFrameKey("a", 3), "a3")
+        assertFalse(cache.hasRoomFor(100))
+        assertTrue(cache.hasRoomFor(0))
+    }
+
+    @Test
+    fun `only the phone's local route is a downloaded episode, any other URL is a stream`() {
+        assertTrue(isLocalMediaUrl("http://192.168.1.20:8214/local-3f9a01-video.ts"))
+        assertTrue(isLocalMediaUrl("http://192.168.1.20:8214/local-3f9a01-video.m3u8"))
+        assertTrue(isLocalMediaUrl("https://10.0.0.2:8214/local-3f9a01-video.mp4?x=1"))
+        assertTrue(isLocalMediaUrl("http://10.0.2.2:8214/local-xyz-video.mp4"))
+        assertFalse(isLocalMediaUrl("https://cdn.example/ep1/master.m3u8"))
+        // Not at the start of the path
+        assertFalse(isLocalMediaUrl("https://cdn.example/files/local-3f9a01-video.mp4"))
+        assertFalse(isLocalMediaUrl("https://cdn.example/local/video.mp4"))
+        // A stream the phone's proxy wraps
+        assertFalse(isLocalMediaUrl("http://192.168.1.20:8214/proxy?url=http%3A%2F%2F192.168.1.20%3A8214%2Flocal-1-video.mp4"))
+        // Not an HTTP URL
+        assertFalse(isLocalMediaUrl("file:///sdcard/local-3f9a01-video.mp4"))
+        assertFalse(isLocalMediaUrl("/local-3f9a01-video.mp4"))
+        assertFalse(isLocalMediaUrl(""))
+    }
+
+    @Test
+    fun `the sidecar is served on the same route as the episode`() {
+        assertEquals(
+            "http://192.168.1.20:8214/local-3f9a01-previews.tdp",
+            previewSidecarUrl("http://192.168.1.20:8214/local-3f9a01-video.ts"),
+        )
+        // Whatever the name: a playlist, an audio track's with dashes in its name
+        assertEquals(
+            "http://192.168.1.20:8214/local-3f9a01-previews.tdp",
+            previewSidecarUrl("http://192.168.1.20:8214/local-3f9a01-master.m3u8"),
+        )
+        assertEquals(
+            "http://192.168.1.20:8214/local-3f9a01-previews.tdp",
+            previewSidecarUrl("http://192.168.1.20:8214/local-3f9a01-audio-en-US.m3u8"),
+        )
+        // Same scheme, host and port; no query nor fragment
+        assertEquals(
+            "https://phone.lan/local-ab12-previews.tdp",
+            previewSidecarUrl("https://phone.lan/local-ab12-video.mp4?start=10#t"),
+        )
+        assertEquals("http://10.0.2.2:8214/local-xyz-previews.tdp", previewSidecarUrl("http://10.0.2.2:8214/local-xyz-video.mp4"))
+    }
+
+    @Test
+    fun `streams and route URLs without a token have no sidecar`() {
+        assertNull(previewSidecarUrl("https://cdn.example/ep1/master.m3u8"))
+        assertNull(previewSidecarUrl("https://cdn.example/files/local-3f9a01-video.mp4"))
+        assertNull(previewSidecarUrl("http://192.168.1.20:8214/local--video.mp4"))
+        assertNull(previewSidecarUrl("http://192.168.1.20:8214/local-video.mp4"))
+        assertNull(previewSidecarUrl("http://192.168.1.20:8214/local-ab/12-video.mp4"))
+        assertNull(previewSidecarUrl("not a url"))
+    }
+
+    @Test
+    fun `prefetch order goes outward from the centre`() {
+        assertEquals(listOf(5, 6, 4, 7, 3, 8, 2), prefetchOrder(5, 8).take(7).toList())
+        assertEquals(listOf(0, 1, 2, 3), prefetchOrder(0, 3).toList())
+        assertEquals(listOf(3, 2, 1, 0), prefetchOrder(3, 3).toList())
+        assertEquals(listOf(3, 2, 1, 0), prefetchOrder(10, 3).toList())
+        assertEquals(10, prefetchOrder(4, 9).toList().size)
+        assertTrue(prefetchOrder(0, -1).toList().isEmpty())
+    }
+
+    @Test
+    fun `coarse to fine covers every step once, the nearest first`() {
+        for (last in listOf(0, 1, 7, 8, 9, 63, 99, 239)) {
+            for (center in listOf(0, last / 2, last)) {
+                val order = coarseToFineOrder(center, last, near = 8).toList()
+                assertEquals("last $last, centre $center", (0..last).toList(), order.sorted())
+            }
+        }
+        assertTrue(coarseToFineOrder(0, -1, near = 8).toList().isEmpty())
+        // As prefetchOrder within ±8 of the centre
+        assertEquals(prefetchOrder(40, 99).take(17).toList(), coarseToFineOrder(40, 99, near = 8).take(17).toList())
+        assertEquals(listOf(40, 41, 39, 42, 38), coarseToFineOrder(40, 99, near = 8).take(5).toList())
+    }
+
+    @Test
+    fun `coarse to fine, then every 8th step from step 0, nearest the centre first, then finer`() {
+        val order = coarseToFineOrder(40, 99, near = 8).toList()
+        // 0, 8, … 96 but those near the centre (32, 40, 48), the nearest first
+        assertEquals(listOf(56, 24, 64, 16, 72, 8, 80, 0, 88, 96), order.subList(17, 27))
+        // Then every 4th, nearest first
+        assertEquals(listOf(52, 28, 60, 20), order.subList(27, 31))
+        assertTrue(order.subList(27, 37).all { it % 4 == 0 && it % 8 != 0 })
+    }
+
+    @Test
+    fun `coarse to fine, the grid stays where it is when the centre moves`() {
+        val grid = (0..99 step 8).toSet()
+        for (center in listOf(3, 37, 61, 99)) {
+            val order = coarseToFineOrder(center, 99, near = 8).toList()
+            val nearby = order.takeWhile { kotlin.math.abs(it - center) <= 8 }
+            val coarse = order.drop(nearby.size).take((grid - nearby.toSet()).size)
+            assertEquals("centre $center", grid - nearby.toSet(), coarse.toSet())
+        }
     }
 
     @Suppress("DEPRECATION")

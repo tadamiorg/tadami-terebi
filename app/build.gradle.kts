@@ -9,8 +9,8 @@ android {
 
     defaultConfig {
         applicationId = "com.sf.tadami.terebi"
-        versionCode = 3
-        versionName = "2.1.0"
+        versionCode = 4
+        versionName = "2.2.0"
     }
 
     signingConfigs {

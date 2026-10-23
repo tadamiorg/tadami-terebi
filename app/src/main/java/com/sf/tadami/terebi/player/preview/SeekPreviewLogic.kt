@@ -5,8 +5,54 @@ import androidx.media3.common.C
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.TrackSelectionParameters
 import com.sf.tadami.terebi.player.TvStreamSource
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
+import kotlin.math.abs
 
 // Ported from the phone app's SeekPreviewLogic.kt (same steps, cache and request rules).
+
+/** Path prefix of the phone's LAN proxy route serving the downloaded episode being cast: `/local-<token>-<name>`. */
+const val LOCAL_MEDIA_PATH_PREFIX = "/local-"
+
+/** The name the phone serves a downloaded episode's preview sidecar ([PreviewSidecar]) under, on its route. */
+const val PREVIEW_SIDECAR_NAME = "previews.tdp"
+
+/**
+ * Whether [url] is a downloaded episode the phone serves from its LAN proxy (`/local-<token>-<name>`, see
+ * [LOCAL_MEDIA_PATH_PREFIX]). Any other URL is a stream, which has no seekbar preview.
+ */
+fun isLocalMediaUrl(url: String): Boolean =
+    url.toHttpUrlOrNull()?.encodedPath?.startsWith(LOCAL_MEDIA_PATH_PREFIX) == true
+
+/**
+ * Where the phone serves the preview sidecar of the downloaded episode at [mediaUrl]: the same route, its
+ * [PREVIEW_SIDECAR_NAME] (`http://host:port/local-<token>-previews.tdp`). Null for a stream, or a route URL
+ * without a token.
+ */
+fun previewSidecarUrl(mediaUrl: String): String? {
+    val url = mediaUrl.toHttpUrlOrNull() ?: return null
+    val path = url.encodedPath
+    if (!path.startsWith(LOCAL_MEDIA_PATH_PREFIX)) return null
+    val token = path.removePrefix(LOCAL_MEDIA_PATH_PREFIX).substringBefore('-', "")
+    if (token.isEmpty() || '/' in token) return null
+    return url.newBuilder()
+        .encodedPath("$LOCAL_MEDIA_PATH_PREFIX$token-$PREVIEW_SIDECAR_NAME")
+        .query(null)
+        .fragment(null)
+        .build()
+        .toString()
+}
+
+/**
+ * The main player as the seekbar preview sees it: where it plays, its duration ([C.TIME_UNSET] while unknown),
+ * whether it's [ready] (playing or paused, neither loading, buffering nor ended), and whether it can spare the
+ * network ([mainPlayerCanSpareNetwork]).
+ */
+data class MainPlayback(
+    val positionMs: Long,
+    val durationMs: Long,
+    val ready: Boolean,
+    val canSpareNetwork: Boolean,
+)
 
 /** Where [positionMs] sits on a [durationMs]-long timeline, from 0 to 1 (0 while the duration is unknown). */
 fun seekFraction(positionMs: Long, durationMs: Long): Float {
@@ -76,6 +122,19 @@ fun previewBucketOf(positionMs: Long, durationMs: Long): Int {
     return (clamped / previewBucketSizeMs(durationMs)).toInt()
 }
 
+/**
+ * The phone player's preview step of [positionMs]: [previewBucketOf], but a last step shorter than half a step
+ * belongs to the one before it. The step size is rounded down, so the last step is often a leftover of a few ms
+ * (26 ms of a 1,430,026 ms episode), too short for a seek to render a frame in it.
+ */
+fun phonePreviewBucketOf(positionMs: Long, durationMs: Long): Int {
+    val bucket = previewBucketOf(positionMs, durationMs)
+    if (durationMs <= 0L) return bucket
+    val last = previewBucketOf(durationMs - 1, durationMs)
+    val size = previewBucketSizeMs(durationMs)
+    return if (bucket == last && last > 0 && durationMs - last * size < size / 2) last - 1 else bucket
+}
+
 /** Start and end (exclusive) of the preview step [bucket]; the last step ends with the video. */
 fun previewBucketRangeMs(bucket: Int, durationMs: Long): LongRange {
     val size = previewBucketSizeMs(durationMs)
@@ -83,6 +142,9 @@ fun previewBucketRangeMs(bucket: Int, durationMs: Long): LongRange {
     val end = (start + size).coerceAtMost(durationMs.coerceAtLeast(start + 1))
     return start until end
 }
+
+/** Width of a preview frame: 256×144 for a 16:9 video, and the most a side of a sidecar's frames may be. */
+const val PREVIEW_FRAME_WIDTH_PX = 256
 
 /**
  * Identity of a stream for the preview frames: its URL with its server and quality. Frames of one identity
@@ -114,6 +176,9 @@ class PreviewFrameCache<V : Any>(private val maxBytes: Long, private val sizeOf:
     /** Whether the frame is cached, without making it recently used. */
     operator fun contains(key: PreviewFrameKey): Boolean = entries.containsKey(key)
 
+    /** Whether a frame of [frameBytes] fits without dropping another. */
+    fun hasRoomFor(frameBytes: Long): Boolean = bytes + frameBytes <= maxBytes
+
     fun put(key: PreviewFrameKey, value: V) {
         if (key.sourceId != sourceId) return
         entries.put(key, value)?.let { bytes -= sizeOf(it) }
@@ -139,8 +204,8 @@ class PreviewFrameCache<V : Any>(private val maxBytes: Long, private val sizeOf:
 }
 
 /**
- * Which preview step to fetch: only the one being scrubbed to, never one cached or already loading, and
- * one at a time. Scrubbing back to the step loading waits for it.
+ * Which preview step to fetch: the one being scrubbed to first, else the background decoding's, never one cached
+ * or already loading, and one at a time. Scrubbing back to the step loading waits for it.
  */
 class BucketRequests {
     var inFlight: Int? = null
@@ -153,10 +218,13 @@ class BucketRequests {
         target = bucket
     }
 
-    /** The step to fetch now, marked as loading; null when there's none, it [isDone] already, or one is loading. */
-    fun next(isDone: (Int) -> Boolean): Int? {
+    /**
+     * The step to fetch now, marked as loading: the one scrubbed to unless it [isDone], else [fallback]'s; null when
+     * there's none, or one is loading.
+     */
+    fun next(fallback: () -> Int? = { null }, isDone: (Int) -> Boolean): Int? {
         if (inFlight != null) return null
-        val bucket = target?.takeUnless(isDone) ?: return null
+        val bucket = target?.takeUnless(isDone) ?: fallback()?.takeUnless(isDone) ?: return null
         inFlight = bucket
         return bucket
     }
@@ -169,6 +237,46 @@ class BucketRequests {
     fun clear() {
         inFlight = null
         target = null
+    }
+}
+
+// Ported from the phone app's PreviewPrefetch.kt.
+
+/**
+ * Every step of 0..[last] once, so the whole timeline has a frame near each position early: first the steps within
+ * [near] of [center] in [prefetchOrder] (an intro skip, a short rewind), then those on a grid of every 8th step from
+ * step 0, every 4th, 2nd, and the rest; within a grid level the nearest the centre first. The grid is absolute: a
+ * centre moving (the order is computed again at each pick) doesn't shift it.
+ */
+fun coarseToFineOrder(center: Int, last: Int, near: Int): Sequence<Int> {
+    if (last < 0) return emptySequence()
+    val start = center.coerceIn(0, last)
+    return sequence {
+        val nearby = prefetchOrder(start, last).takeWhile { abs(it - start) <= near }.toList()
+        yieldAll(nearby)
+        val seen = nearby.toMutableSet()
+        for (stride in COARSE_TO_FINE_STRIDES) {
+            val level = (0..last step stride).filter { seen.add(it) }
+            // As prefetchOrder: nearest first, the later one first at the same distance
+            yieldAll(level.sortedWith(compareBy<Int> { abs(it - start) }.thenByDescending { it }))
+        }
+    }
+}
+
+private val COARSE_TO_FINE_STRIDES = listOf(8, 4, 2, 1)
+
+/** Steps from [center] outward within 0..[last]: center, center+1, center-1, center+2, … */
+fun prefetchOrder(center: Int, last: Int): Sequence<Int> {
+    if (last < 0) return emptySequence()
+    val start = center.coerceIn(0, last)
+    return sequence {
+        yield(start)
+        var distance = 1
+        while (start + distance <= last || start - distance >= 0) {
+            if (start + distance <= last) yield(start + distance)
+            if (start - distance >= 0) yield(start - distance)
+            distance++
+        }
     }
 }
 
