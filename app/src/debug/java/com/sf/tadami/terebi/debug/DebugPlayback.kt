@@ -16,6 +16,11 @@ import org.json.JSONObject
  * adb shell am start -n com.sf.tadami.terebi.debug/com.sf.tadami.terebi.ui.PlaybackActivity \
  *     -a com.sf.tadami.terebi.debug.PLAY --es url <stream url> [--es title <title>] [--es referer <url>]
  * ```
+ *
+ * A URL of the phone's local route plays as a downloaded episode, with its seekbar preview: its sidecar is read
+ * from the same route. `--es url http://10.0.2.2:8214/local-xyz-video.mp4` (a server on the emulator's host)
+ * reads the frames at `http://10.0.2.2:8214/local-xyz-previews.tdp`. Any other URL plays as a stream, without
+ * preview.
  */
 object DebugPlayback {
     private const val ACTION = "com.sf.tadami.terebi.debug.PLAY"

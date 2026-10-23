@@ -1,5 +1,6 @@
 package com.sf.tadami.terebi.ui
 
+import android.graphics.Bitmap
 import android.view.TextureView
 import androidx.annotation.OptIn
 import androidx.compose.foundation.Image
@@ -10,7 +11,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -45,13 +45,11 @@ private val PreviewGap = 12.dp
 private val PreviewEdgeMargin = 48.dp
 
 /**
- * The frame of the preview step [positionMs] falls in, with the exact [positionMs] under it. While the step's
- * frame loads, the last frame shown stays with a spinner over it; with no frame yet, or none available, only
- * the time shows.
+ * The [frame] of the preview step [positionMs] falls in, with the exact [positionMs] under it. Without one (not
+ * cached yet, or a stream), only the time shows: never a spinner, nor another step's frame.
  */
-@OptIn(UnstableApi::class)
 @Composable
-fun SeekPreviewCard(preview: SeekPreviewPlayer, positionMs: Long, modifier: Modifier = Modifier) {
+fun SeekPreviewCard(frame: Bitmap?, positionMs: Long, modifier: Modifier = Modifier) {
     val shape = RoundedCornerShape(12.dp)
     Column(
         modifier = modifier
@@ -61,24 +59,14 @@ fun SeekPreviewCard(preview: SeekPreviewPlayer, positionMs: Long, modifier: Modi
             .border(1.dp, MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f), shape),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        val frame = preview.frame
         if (frame != null) {
-            Box(modifier = Modifier.size(PreviewWidth, PreviewHeight), contentAlignment = Alignment.Center) {
-                val image = remember(frame) { frame.asImageBitmap() }
-                Image(
-                    bitmap = image,
-                    contentDescription = null,
-                    contentScale = ContentScale.Fit,
-                    modifier = Modifier.size(PreviewWidth, PreviewHeight),
-                )
-                if (preview.frameLoading) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(32.dp),
-                        color = Color.White,
-                        strokeWidth = 3.dp,
-                    )
-                }
-            }
+            val image = remember(frame) { frame.asImageBitmap() }
+            Image(
+                bitmap = image,
+                contentDescription = null,
+                contentScale = ContentScale.Fit,
+                modifier = Modifier.size(PreviewWidth, PreviewHeight),
+            )
         }
         Text(
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
@@ -127,7 +115,9 @@ fun SeekPreviewAnchor(
             }
         },
     ) {
-        SeekPreviewCard(preview, positionMs)
+        // Looked up again as frames land: the step's frame shows as soon as it's cached
+        val frame = remember(positionMs, durationMs, preview.framesVersion) { preview.frameAt(positionMs, durationMs) }
+        SeekPreviewCard(frame, positionMs)
     }
 }
 
