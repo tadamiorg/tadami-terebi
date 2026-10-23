@@ -124,6 +124,17 @@ class SeekPreviewLogicTest {
     }
 
     @Test
+    fun `the phone's steps fold a short leftover end step into the one before`() {
+        // 1,430,026 ms in 14,300 ms steps: step 100 is a 26 ms leftover
+        assertEquals(100, previewBucketOf(1_430_025, 1_430_026))
+        assertEquals(99, phonePreviewBucketOf(1_430_025, 1_430_026))
+        assertEquals(99, phonePreviewBucketOf(1_429_999, 1_430_026))
+        // A last step of half a step or more is kept
+        assertEquals(12, phonePreviewBucketOf(62_999, 63_000))
+        assertEquals(0, phonePreviewBucketOf(0, 0))
+    }
+
+    @Test
     fun `step ranges cover the video without gaps`() {
         assertEquals(0L until 14_400L, previewBucketRangeMs(0, episode))
         assertEquals(14_400L until 28_800L, previewBucketRangeMs(1, episode))

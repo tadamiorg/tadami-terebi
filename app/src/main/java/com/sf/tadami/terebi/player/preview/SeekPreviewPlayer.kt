@@ -240,8 +240,8 @@ class SeekPreviewPlayer(
         val bucket = requests.inFlight ?: return
         if (!frameReleasedSinceFetch) return
         val view = textureView ?: return
-        val height = (FRAME_WIDTH_PX / videoAspectRatio).roundToInt().coerceAtLeast(1)
-        val bitmap = view.getBitmap(FRAME_WIDTH_PX, height) ?: return
+        val height = (PREVIEW_FRAME_WIDTH_PX / videoAspectRatio).roundToInt().coerceAtLeast(1)
+        val bitmap = view.getBitmap(PREVIEW_FRAME_WIDTH_PX, height) ?: return
         frames.put(key(bucket), bitmap)
         Log.d(TAG, "Cached step $bucket: ${frames.size} frames, ${frames.bytes / 1024} KiB")
         handler.removeCallbacks(giveUp)
@@ -337,7 +337,6 @@ class SeekPreviewPlayer(
         const val DEFAULT_ASPECT_RATIO = 16f / 9f
 
         // 256×144 ARGB frames (144 KiB): 12 MiB keep about 85 of them, most of an episode at 1% steps
-        const val FRAME_WIDTH_PX = 256
         const val FRAME_CACHE_BYTES = 12L * 1024 * 1024
 
         /** Software decoders first; hardware ones only when none, and only with a spare instance. */
